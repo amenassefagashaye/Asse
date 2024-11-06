@@ -1,0 +1,103 @@
+import requests
+import base64
+import json
+from datetime import datetime
+
+# GitHub configuration
+GITHUB_REPO = 'username/repo_name'  # Replace with your GitHub repo, e.g., 'yourusername/yourrepo'
+GITHUB_TOKEN = 'your_github_token'  # Replace with your GitHub personal access token
+API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/messages'
+HEADERS = {
+    'Authorization': f'token {GITHUB_TOKEN}',
+    'Accept': 'application/vnd.github.v3+json'
+}
+
+# Function to send a message
+def send_message(username, message):
+    timestamp = datetime.utcnow().isoformat()
+    content = f"{username}: {message} at {timestamp}"
+    encoded_content = base64.b64encode(content.encode()).decode('utf-8')
+    
+    data = {
+        "message": f"New message from {username}",
+        "content": encoded_content,
+        "path": f"messages/{timestamp}.txt"
+    }
+    response = requests.put(f"{API_URL}/{timestamp}.txt", headers=HEADERS, data=json.dumps(data))
+    if response.status_code == 201:
+        print("Message sent successfully!")
+    else:
+        print("Failed to send message:", response.json())
+
+# Function to receive all messages
+def receive_messages():
+    response = requests.get(API_URL, headers=HEADERS)
+    if response.status_code == 200:
+        files = response.json()
+        print("\nReceived Messages:")
+        for file in files:
+            file_content = requests.get(file['download_url']).text
+            message = base64.b64decode(file_content).decode()
+            print(message)
+    else:
+        print("Failed to retrieve messages:", response.json())
+
+# Function to send a file (e.g., image or document)
+def send_file(username, file_path):
+    with open(file_path, "rb") as file:
+        file_content = file.read()
+    
+    encoded_content = base64.b64encode(file_content).decode('utf-8')
+    timestamp = datetime.utcnow().isoformat()
+    file_name = file_path.split("/")[-1]
+    
+    data = {
+        "message": f"New file from {username}",
+        "content": encoded_content,
+        "path": f"files/{timestamp}_{file_name}"
+    }
+
+    response = requests.put(f"{API_URL}/files/{timestamp}_{file_name}", headers=HEADERS, data=json.dumps(data))
+    if response.status_code == 201:
+        print("File sent successfully!")
+    else:
+        print("Failed to send file:", response.json())
+
+# Function to receive all files and save them locally
+def receive_files():
+    response = requests.get(f"{API_URL}/files", headers=HEADERS)
+    if response.status_code == 200:
+        files = response.json()
+        print("\nReceived Files:")
+        for file in files:
+            file_content = requests.get(file['download_url']).text
+            decoded_content = base64.b64decode(file_content)
+            file_name = "downloaded_" + file['name']
+            with open(file_name, "wb") as download_file:
+                download_file.write(decoded_content)
+            print(f"File {file_name} downloaded successfully!")
+    else:
+        print("Failed to retrieve files:", response.json())
+
+# Main Program
+if __name__ == "__main__":
+    print("1. Send Message")
+    print("2. Receive Messages")
+    print("3. Send File")
+    print("4. Receive Files")
+    choice = input("Choose an option (1-4): ")
+
+    if choice == '1':
+        username = input("Enter your username: ")
+        message = input("Enter your message: ")
+        send_message(username, message)
+    elif choice == '2':
+        receive_messages()
+    elif choice == '3':
+        username = input("Enter your username: ")
+        file_path = input("Enter the file path: ")
+        send_file(username, file_path)
+    elif choice == '4':
+        receive_files()
+    else:
+        print("Invalid choice.")
